@@ -116,9 +116,10 @@
   };
 
   // ---- Stripe checkout ----
-  // ONE payment link. Stripe collects the shipping address and shows the right
-  // shipping rate (UK £5 / International £15) from the customer's country — so
-  // this link must have BOTH shipping rates + "collect shipping address" turned on.
+  // ONE payment link. Stripe collects the shipping address and the customer
+  // picks their shipping there (UK £5 / International £15) based on the real
+  // address they enter — VPN-proof. This link must have BOTH shipping rates
+  // + "collect shipping address" turned on.
   const CHECKOUT_LINK = 'https://buy.stripe.com/5kQcMYf66aKB41V9c3aMU40';
 
   const dimsEl = document.getElementById('dims');
@@ -150,6 +151,9 @@
   sizeEls.forEach((el) => {
     el.addEventListener('click', () => selectSize(el.dataset.size, el));
   });
+
+  // Default to M so BUY NOW is ready on load; the customer can still change it.
+  selectSize('M', sizeEls.find((e) => e.dataset.size === 'M'));
 
   // BUY NOW → Stripe (address + shipping handled there), carrying design + size.
   buyEl.addEventListener('click', () => {
@@ -520,7 +524,7 @@ loader.load(
     window.__backDecals = projectDecal({
       from: new THREE.Vector3(cx, backY, cz - halfZ),
       dir: new THREE.Vector3(0, 0, 1),
-      size: new THREE.Vector3(worldSize.x * 0.55, worldSize.x * 0.55, 0.5),
+      size: new THREE.Vector3(worldSize.x * 0.46, worldSize.x * 0.46, 0.16),
       texture: logoColorTex, bump: logoBumpTex,
     }) || [];
 
