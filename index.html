@@ -101,9 +101,8 @@
     <div class="size" data-size="M">m</div>
     <div class="size" data-size="L">l</div>
   </div>
-  <div id="price">£20</div>
   <div id="buyrow">
-    <div id="buy" class="disabled">BUY NOW</div>
+    <div id="buy" class="disabled">BUY NOW · £20</div>
   </div>
   <div id="shiprow">
     <div class="ship-opt" data-region="UK">UK · £5</div>
@@ -156,7 +155,7 @@
     selectedSize = size;
     sizeEls.forEach((s) => s.classList.toggle('selected', s === el));
     buyEl.classList.remove('disabled');
-    buyEl.textContent = 'BUY NOW';
+    buyEl.textContent = 'BUY NOW · £20';
     closeShipping();
     const m = MEASUREMENTS[size];
     dimsEl.textContent =
