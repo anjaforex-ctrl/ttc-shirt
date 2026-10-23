@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>TTC — 3D Mockup</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #06070b; }
+  body {
+    background-color: #06070b;
+    background-image:
+      linear-gradient(rgba(140,160,200,0.11) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(140,160,200,0.11) 1px, transparent 1px);
+    background-size: 104px 104px;
+  }
+  #app { position: fixed; inset: 0; }
+  #status {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    color: #888; font: 14px/1.4 -apple-system, system-ui, sans-serif;
+    letter-spacing: 0.04em;
+  }
+
+  /* ---------- Shop overlay ---------- */
+  #ui {
+    position: fixed; left: 0; right: 0; bottom: 30px; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    pointer-events: none;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', ui-monospace, monospace;
+  }
+  #sizes { display: flex; gap: 10px; pointer-events: auto; }
+  .size {
+    width: 50px; height: 50px; border-radius: 11px;
+    background: #0d0d0d; border: 1.4px dashed rgba(255,255,255,0.85);
+    color: #fff; font-size: 15px; letter-spacing: 0.05em;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .size:hover { border-color: #fff; background: #161616; }
+  .size.selected {
+    background: #fff; color: #000;
+    border-style: solid; border-color: #fff;
+  }
+  #buy {
+    pointer-events: auto;
+    flex: 1; padding: 13px 0; border-radius: 11px;
+    background: #0d0d0d; border: 1.4px dashed rgba(255,255,255,0.85);
+    color: #fff; font-size: 13px; letter-spacing: 0.16em; text-align: center;
+    cursor: pointer; user-select: none;
+    transition: background .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+  #buy.disabled { opacity: 0.32; cursor: not-allowed; }
+  #buy:not(.disabled):hover { background: #fff; color: #000; border-style: solid; }
+  #buy.added { background: #fff; color: #000; border-style: solid; }
+  #dims {
+    position: fixed; right: 18px; top: 50%; transform: translateY(-50%);
+    pointer-events: none; z-index: 11;
+    color: #9a9a9a; font-size: 10px; letter-spacing: 0.08em;
+    line-height: 1.9; text-align: right; white-space: pre-line;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', ui-monospace, monospace;
+  }
+  #designs { display: flex; gap: 10px; pointer-events: auto; margin-bottom: 2px; }
+  .design {
+    width: 81px; height: 34px; border-radius: 10px;
+    background: #0d0d0d; border: 1.4px dashed rgba(255,255,255,0.85);
+    color: #fff; font-size: 8px; letter-spacing: 0.04em; white-space: nowrap;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .design:hover { border-color: #fff; background: #161616; }
+  .design.selected { background: #fff; color: #000; border-style: solid; border-color: #fff; }
+  #buyrow { display: flex; align-items: center; width: 176px; pointer-events: auto; }
+  #price {
+    pointer-events: none; color: #fff; font-size: 15px; font-weight: 300;
+    letter-spacing: 0.08em; white-space: nowrap; text-align: center;
+  }
+  #shiprow { display: none; align-items: center; gap: 10px; width: 176px; pointer-events: auto; }
+  .ship-opt {
+    pointer-events: auto; flex: 1; padding: 11px 0; border-radius: 11px;
+    background: #0d0d0d; border: 1.4px dashed rgba(255,255,255,0.85);
+    color: #fff; font-size: 10px; letter-spacing: 0.06em; text-align: center;
+    cursor: pointer; user-select: none;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .ship-opt:hover { background: #fff; color: #000; border-style: solid; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="status">loading…</div>
+
+<!-- ---------- Shop overlay ---------- -->
+<div id="ui">
+  <div id="designs">
+    <div class="design selected" data-design="0">FRONT + BACK</div>
+    <div class="design" data-design="1">BACK ONLY</div>
+  </div>
+  <div id="sizes">
+    <div class="size" data-size="S">s</div>
+    <div class="size" data-size="M">m</div>
+    <div class="size" data-size="L">l</div>
+  </div>
+  <div id="price">£20</div>
+  <div id="buyrow">
+    <div id="buy" class="disabled">BUY NOW</div>
+  </div>
+  <div id="shiprow">
+    <div class="ship-opt" data-region="UK">UK · £5</div>
+    <div class="ship-opt" data-region="INTL">WORLD · £15</div>
+  </div>
+  <div id="dims">SELECT A SIZE</div>
+</div>
+
+<script>
+  // Measurements per size (oversized fit, flat-lay).
+  const MEASUREMENTS = {
+    S: { chest: 56, length: 70, sleeve: 22 },
+    M: { chest: 59, length: 72, sleeve: 23 },
+    L: { chest: 62, length: 74, sleeve: 24 },
+  };
+
+  // ---- Stripe payment links (one per shipping region) ----
+  // Each link already carries the £20 item + its shipping rate; Stripe collects
+  // the customer's address. The chosen design + size ride along as client_reference_id.
+  const STRIPE_LINKS = {
+    UK:   'https://buy.stripe.com/5kQcMYf66aKB41V9c3aMU40',
+    INTL: 'https://buy.stripe.com/aFa28kgaa9Gx1TN1JBaMU41',
+  };
+
+  const buyrowEl = document.getElementById('buyrow');
+  const shiprowEl = document.getElementById('shiprow');
+  const dimsEl = document.getElementById('dims');
+  const buyEl = document.getElementById('buy');
+
+  function closeShipping() {
+    shiprowEl.style.display = 'none';
+    buyrowEl.style.display = 'flex';
+  }
+
+  let currentDesign = 0;
+  const designEls = [...document.querySelectorAll('.design')];
+  designEls.forEach((el) => {
+    el.addEventListener('click', () => {
+      currentDesign = +el.dataset.design;
+      designEls.forEach((d) => d.classList.toggle('selected', d === el));
+      if (window.__setDesign) window.__setDesign(currentDesign);
+      closeShipping();
+    });
+  });
+
+  let selectedSize = null;
+  const sizeEls = [...document.querySelectorAll('.size')];
+
+  function selectSize(size, el) {
+    selectedSize = size;
+    sizeEls.forEach((s) => s.classList.toggle('selected', s === el));
+    buyEl.classList.remove('disabled');
+    buyEl.textContent = 'BUY NOW';
+    closeShipping();
+    const m = MEASUREMENTS[size];
+    dimsEl.textContent =
+      `SIZE ${size}\nCHEST ${m.chest}CM\nLENGTH ${m.length}CM\nSLEEVE ${m.sleeve}CM`;
+  }
+
+  sizeEls.forEach((el) => {
+    el.addEventListener('click', () => selectSize(el.dataset.size, el));
+  });
+
+  // Step 1 — BUY NOW reveals the two shipping options.
+  buyEl.addEventListener('click', () => {
+    if (!selectedSize) {
+      dimsEl.textContent = 'SELECT A SIZE FIRST';
+      document.getElementById('sizes').animate(
+        [{ transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'translateX(0)' }],
+        { duration: 220, iterations: 1 }
+      );
+      return;
+    }
+    buyrowEl.style.display = 'none';
+    shiprowEl.style.display = 'flex';
+  });
+
+  // Step 2 — pick a region → Stripe checkout, carrying design + size.
+  [...document.querySelectorAll('.ship-opt')].forEach((el) => {
+    el.addEventListener('click', () => {
+      const url = STRIPE_LINKS[el.dataset.region];
+      if (!url || !selectedSize) return;
+      const ref = `TTC-TEE-D${currentDesign + 1}-${selectedSize}`;
+      const sep = url.includes('?') ? '&' : '?';
+      el.textContent = '…';
+      window.location.href = `${url}${sep}client_reference_id=${ref}`;
+    });
+  });
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
+
+const statusEl = document.getElementById('status');
+const setStatus = (s) => { if (statusEl) statusEl.textContent = s; };
+
+// ---------- Renderer / Scene / Camera ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.setClearColor(0x000000, 0);   // transparent — show the CSS grid behind
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = null;
+window.__scene = scene;
+window.__THREE = THREE;
+
+const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(0, 0, 4.6);
+window.__camera = camera;
+
+// ---------- Lights (studio-ish) ----------
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(2.5, 3, 3);
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xffffff, 1.1);
+fill.position.set(-3, 1.5, 2);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffffff, 1.6);
+rim.position.set(0, 2, -3);
+scene.add(rim);
+
+const ground = new THREE.HemisphereLight(0xffffff, 0x222222, 0.35);
+scene.add(ground);
+
+// (Background glow removed — the shirt now sits on plain black.)
+
+// ---------- Logo (procedural canvas) — kept only as a fallback ----------
+function makeLogoTexture(size = 1024) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+
+  // transparent background
+  ctx.clearRect(0, 0, size, size);
+
+  const cx = size / 2;
+  const cy = size / 2;
+  // Sizing relative to canvas
+  const R = size * 0.36;          // outer circle radius
+  const stroke = size * 0.055;    // stroke / bar thickness
+  const white = '#ffffff';
+
+  ctx.fillStyle = white;
+  ctx.strokeStyle = white;
+  ctx.lineCap = 'butt';
+  ctx.lineJoin = 'miter';
+
+  // --- Outer circle (open at top & bottom where T shaft passes through) ---
+  ctx.lineWidth = stroke;
+  const gapHalf = Math.asin((stroke * 0.9) / R); // angular gap matching shaft width
+  // top gap centred at -PI/2, bottom gap centred at +PI/2
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, -Math.PI / 2 + gapHalf, Math.PI / 2 - gapHalf, false);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, Math.PI / 2 + gapHalf, 3 * Math.PI / 2 - gapHalf, false);
+  ctx.stroke();
+
+  // --- Vertical shaft of middle T (extends through circle, capped by triangles) ---
+  const shaftW = stroke;
+  const shaftTop = cy - R - size * 0.075;
+  const shaftBot = cy + R + size * 0.075;
+  ctx.fillRect(cx - shaftW / 2, shaftTop, shaftW, shaftBot - shaftTop);
+
+  // --- Triangular caps (top points down into circle, bottom points up) ---
+  const triH = size * 0.085;
+  const triW = size * 0.13;
+  // top triangle: above the shaft, pointing DOWN
+  ctx.beginPath();
+  ctx.moveTo(cx - triW / 2, shaftTop - triH * 0.05);
+  ctx.lineTo(cx + triW / 2, shaftTop - triH * 0.05);
+  ctx.lineTo(cx, shaftTop - triH * 0.05 + triH);
+  ctx.closePath();
+  // We want the OUTLINE look matching the photo (triangle outline, hollow)
+  ctx.lineWidth = stroke * 0.85;
+  ctx.stroke();
+
+  // bottom triangle: below the shaft, pointing UP
+  ctx.beginPath();
+  ctx.moveTo(cx - triW / 2, shaftBot + triH * 0.05);
+  ctx.lineTo(cx + triW / 2, shaftBot + triH * 0.05);
+  ctx.lineTo(cx, shaftBot + triH * 0.05 - triH);
+  ctx.closePath();
+  ctx.stroke();
+
+  // --- Middle T crossbar (inside circle, near top) ---
+  const crossY = cy - R * 0.55;
+  const crossW = R * 1.15;
+  ctx.fillRect(cx - crossW / 2, crossY - stroke / 2, crossW, stroke);
+
+  // --- Left "T" ---
+  // T sits to the left of the central shaft. Its vertical stem and top bar.
+  const sideStemW = stroke;
+  const sideTopBarW = R * 0.55;
+  const sideTopY = crossY; // align tops with middle T crossbar
+  const sideBottomY = cy + R * 0.55;
+  const leftStemX = cx - R * 0.52;
+
+  // left T top bar
+  ctx.fillRect(leftStemX - sideTopBarW / 2, sideTopY - stroke / 2, sideTopBarW, stroke);
+  // left T stem
+  ctx.fillRect(leftStemX - sideStemW / 2, sideTopY, sideStemW, sideBottomY - sideTopY);
+
+  // --- Right "C" ---
+  const cRadius = R * 0.42;
+  const cX = cx + R * 0.5;
+  const cY = (sideTopY + sideBottomY) / 2;
+  ctx.lineWidth = stroke;
+  ctx.beginPath();
+  // C opens to the right -> draw arc from ~-60deg to +60deg (measured from +x), the LEFT side
+  ctx.arc(cX, cY, cRadius, Math.PI * 0.30, Math.PI * 1.70, false);
+  ctx.stroke();
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+let logoColorTex = null, logoBumpTex = null;
+
+// Build two textures from the real TTC emblem PNG:
+//  • color: crisp white logo, transparent background (the actual print)
+//  • bump : blurred mask so the white reads as a raised ~0.5 mm puff print
+// It auto-crops the emblem out of the full artwork, dropping the "THE TRADING
+// CLUB" text (the text is a separate, shorter block of ink near the bottom).
+function processLogo(img) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const src = document.createElement('canvas'); src.width = W; src.height = H;
+  const sctx = src.getContext('2d'); sctx.drawImage(img, 0, 0);
+  const data = sctx.getImageData(0, 0, W, H).data;
+  const lumAt = (x, y) => { const i = (y * W + x) * 4; return (data[i] + data[i+1] + data[i+2]) / 3; };
+
+  // Count white-ink pixels per row
+  const rowInk = new Array(H).fill(0);
+  for (let y = 0; y < H; y++) { let c = 0; for (let x = 0; x < W; x += 2) if (lumAt(x, y) > 90) c++; rowInk[y] = c; }
+
+  // Merge inked rows into segments (bridging small black gaps); emblem = tallest
+  const mergeGap = Math.round(H * 0.03), thr = 3;
+  const segs = []; let start = -1, gap = 0;
+  for (let y = 0; y < H; y++) {
+    if (rowInk[y] > thr) { if (start < 0) start = y; gap = 0; }
+    else if (start >= 0) { if (++gap > mergeGap) { segs.push([start, y - gap]); start = -1; gap = 0; } }
+  }
+  if (start >= 0) segs.push([start, H - 1]);
+  segs.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+  const [y0, y1] = segs[0];               // emblem vertical span (text excluded)
+
+  // Horizontal span of the emblem within that band
+  let xMin = W, xMax = 0;
+  for (let y = y0; y <= y1; y++) for (let x = 0; x < W; x++) if (lumAt(x, y) > 90) { if (x < xMin) xMin = x; if (x > xMax) xMax = x; }
+
+  // Centred square crop with a little padding
+  const side = Math.max(xMax - xMin, y1 - y0) * 1.12;
+  const cxp = (xMin + xMax) / 2, cyp = (y0 + y1) / 2;
+  const sx = cxp - side / 2, sy = cyp - side / 2;
+
+  const OUT = 1024;
+  const make = (blurPx, mode) => {
+    const c = document.createElement('canvas'); c.width = c.height = OUT;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, OUT, OUT);
+    ctx.filter = blurPx ? `blur(${blurPx}px)` : 'none';
+    ctx.drawImage(src, sx, sy, side, side, 0, 0, OUT, OUT);
+    ctx.filter = 'none';
+    const id = ctx.getImageData(0, 0, OUT, OUT), d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const lum = (d[i] + d[i+1] + d[i+2]) / 3;
+      if (mode === 'color') { d[i] = d[i+1] = d[i+2] = 255; d[i+3] = lum; }   // white print, alpha = mask
+      else { d[i] = d[i+1] = d[i+2] = lum; d[i+3] = 255; }                     // height map for puff
+    }
+    ctx.putImageData(id, 0, 0); return c;
+  };
+  return { colorCanvas: make(0, 'color'), bumpCanvas: make(7, 'bump') };
+}
+
+// ---------- Group to hold shirt + decals so we can rotate together ----------
+const shirtGroup = new THREE.Group();
+shirtGroup.position.y = 0.6;    // lift so the whole shirt sits well above the controls
+scene.add(shirtGroup);
+window.__shirtGroup = shirtGroup;
+
+// ---------- Load model ----------
+const loader = new GLTFLoader();
+const MODEL_URL = './oversized_t-shirt.glb';
+
+function startModel() {
+loader.load(
+  MODEL_URL,
+  (gltf) => {
+    const root = gltf.scene;
+
+    // Re-color all materials to black, keep some sheen
+    let shirtMesh = null;
+    let biggestArea = 0;
+    root.traverse((obj) => {
+      if (obj.isMesh) {
+        const mat = new THREE.MeshPhysicalMaterial({
+          color: 0x0a0a0a,
+          roughness: 0.78,
+          metalness: 0.0,
+          sheen: 0.5,
+          sheenRoughness: 0.9,
+          sheenColor: new THREE.Color(0x1a1a1a),
+        });
+        obj.material = mat;
+        obj.castShadow = false;
+        obj.receiveShadow = false;
+        obj.geometry.computeBoundingBox();
+        const bb = obj.geometry.boundingBox;
+        const size = new THREE.Vector3();
+        bb.getSize(size);
+        const area = size.x * size.y;
+        if (area > biggestArea) { biggestArea = area; shirtMesh = obj; }
+      }
+    });
+
+    // Fit + centre: scale FIRST, then translate so the world-space centre is at origin
+    shirtGroup.add(root);
+
+    const box0 = new THREE.Box3().setFromObject(root);
+    const size0 = new THREE.Vector3();
+    box0.getSize(size0);
+    const maxDim = Math.max(size0.x, size0.y, size0.z);
+    const scale = 1.12 / maxDim;
+    root.scale.setScalar(scale);
+
+    shirtGroup.updateMatrixWorld(true);
+    const box1 = new THREE.Box3().setFromObject(root);
+    const center1 = new THREE.Vector3();
+    box1.getCenter(center1);
+    root.position.sub(center1);
+    window.__shirtRoot = root;
+    window.__box1 = box1;
+
+    // Compute world bbox after scaling/centering
+    shirtGroup.updateMatrixWorld(true);
+    const worldBox = new THREE.Box3().setFromObject(shirtGroup);
+    const worldCenter = new THREE.Vector3();
+    const worldSize = new THREE.Vector3();
+    worldBox.getCenter(worldCenter);
+    worldBox.getSize(worldSize);
+
+    // Heuristic: assume the model's "forward" is +Z. If not we'll fix by
+    // raycasting from both sides and using whichever side has more hits.
+    // We probe from +Z and -Z toward the centre; the one closer to the
+    // user (where the chest is) is the front. We'll just pick +Z as front.
+
+    const raycaster = new THREE.Raycaster();
+    const meshes = [];
+    shirtGroup.traverse((o) => { if (o.isMesh) meshes.push(o); });
+
+    function projectDecal({ from, dir, size: dsize, texture, bump = null, color = 0xffffff }) {
+      raycaster.set(from, dir.clone().normalize());
+      const hits = raycaster.intersectObjects(meshes, true);
+      if (!hits.length) return null;
+      const primary = hits[0];
+
+      // Decal orientation from the primary hit's normal
+      const normal = primary.face.normal.clone();
+      normal.transformDirection(primary.object.matrixWorld).normalize();
+      const helper = new THREE.Object3D();
+      helper.position.copy(primary.point);
+      helper.lookAt(primary.point.clone().add(normal));
+      const orientation = new THREE.Euler().copy(helper.rotation);
+
+      const made = [];
+      // Apply the SAME decal box to every mesh — DecalGeometry trims each
+      // mesh's triangles inside the box, so panels that share the same surface
+      // (front shell + lining + side seam) all get their share of the print.
+      for (const m of meshes) {
+        try {
+          const geom = new DecalGeometry(m, primary.point, orientation, dsize);
+          if (!geom.attributes.position || geom.attributes.position.count === 0) {
+            geom.dispose();
+            continue;
+          }
+          const mat = new THREE.MeshStandardMaterial({
+            map: texture,
+            bumpMap: bump,            // raised ~0.5 mm puff-print look
+            bumpScale: 2.2,
+            transparent: true,
+            depthTest: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -8,
+            polygonOffsetUnits: -1,
+            roughness: 0.72,          // matte, rubbery puff print
+            metalness: 0.0,
+            color,
+          });
+          const mesh = new THREE.Mesh(geom, mat);
+          scene.add(mesh);
+          shirtGroup.attach(mesh);
+          made.push(mesh);
+          window.__decalMeshes.push(mesh);
+        } catch (e) { /* skip meshes that don't intersect */ }
+      }
+      return made;
+    }
+
+    const cy = worldCenter.y;
+    const cx = worldCenter.x;
+    const cz = worldCenter.z;
+    const halfZ = worldSize.z * 0.5 + 0.5;
+
+    // ---- FRONT small chest logo (slightly upper-left of model centre when viewed front) ----
+    // Probe a few candidate Y positions to find a stable surface
+    const chestY = cy + worldSize.y * 0.18;   // upper chest
+    const chestX = cx + worldSize.x * 0.145;  // nudged slightly toward the chest side
+    window.__frontDecals = projectDecal({
+      from: new THREE.Vector3(chestX, chestY, cz + halfZ),
+      dir: new THREE.Vector3(0, 0, -1),
+      size: new THREE.Vector3(worldSize.x * 0.12, worldSize.x * 0.12, 0.25),
+      texture: logoColorTex, bump: logoBumpTex,
+    }) || [];
+
+    // ---- BACK large centre logo ----
+    const backY = cy + worldSize.y * 0.05;
+    window.__backDecals = projectDecal({
+      from: new THREE.Vector3(cx, backY, cz - halfZ),
+      dir: new THREE.Vector3(0, 0, 1),
+      size: new THREE.Vector3(worldSize.x * 0.55, worldSize.x * 0.55, 0.5),
+      texture: logoColorTex, bump: logoBumpTex,
+    }) || [];
+
+    // Apply the initial design's placement (front shown for Design 1).
+    if (window.__setDesign) window.__setDesign(window.__currentDesign || 0);
+
+    setStatus('');
+    statusEl.style.display = 'none';
+  },
+  (xhr) => {
+    if (xhr.total) {
+      const pct = Math.round((xhr.loaded / xhr.total) * 100);
+      setStatus(`loading… ${pct}%`);
+    }
+  },
+  (err) => {
+    console.error(err);
+    setStatus('failed to load model');
+  }
+);
+}
+
+// Two selectable designs. Design 2 falls back to design 1 until logo2.png exists.
+const DESIGNS = [{ file: './logo.png' }, { file: './logo2.png' }];
+window.__decalMeshes = [];
+
+function loadImg(src) {
+  return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+}
+
+// Design 1 = front chest + back print.  Design 2 = back print only.
+window.__currentDesign = 0;
+window.__setDesign = (i) => {
+  window.__currentDesign = i;
+  const showFront = (i === 0);
+  for (const m of (window.__frontDecals || [])) m.visible = showFront;
+};
+
+Promise.all(DESIGNS.map((d) => loadImg(d.file))).then((imgs) => {
+  imgs.forEach((im, i) => {
+    if (!im) return;
+    try {
+      const { colorCanvas, bumpCanvas } = processLogo(im);
+      DESIGNS[i].colorTex = new THREE.CanvasTexture(colorCanvas);
+      DESIGNS[i].colorTex.colorSpace = THREE.SRGBColorSpace; DESIGNS[i].colorTex.anisotropy = 8;
+      DESIGNS[i].bumpTex = new THREE.CanvasTexture(bumpCanvas); DESIGNS[i].bumpTex.anisotropy = 8;
+    } catch (e) { console.error('logo processing failed', e); }
+  });
+  // Any design without its own art reuses design 1's.
+  DESIGNS.forEach((d) => { if (!d.colorTex) { d.colorTex = DESIGNS[0].colorTex; d.bumpTex = DESIGNS[0].bumpTex; } });
+  logoColorTex = DESIGNS[0].colorTex; logoBumpTex = DESIGNS[0].bumpTex;
+  startModel();
+});
+
+// ---------- Auto-rotate ----------
+const clock = new THREE.Clock();
+window.__paused = false;
+function animate() {
+  const dt = clock.getDelta();
+  if (!window.__paused) shirtGroup.rotation.y += dt * 0.6;
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+// ---------- Resize ----------
+addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
