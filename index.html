@@ -22,7 +22,7 @@
 
   /* ---------- Shop overlay ---------- */
   #ui {
-    position: fixed; left: 0; right: 0; bottom: 30px; z-index: 10;
+    position: fixed; left: 0; right: 0; bottom: 58px; z-index: 10;
     display: flex; flex-direction: column; align-items: center; gap: 16px;
     pointer-events: none;
     font-family: 'SF Mono', 'Menlo', 'Consolas', ui-monospace, monospace;
@@ -102,11 +102,7 @@
     <div class="size" data-size="L">l</div>
   </div>
   <div id="buyrow">
-    <div id="buy" class="disabled">BUY NOW · £20</div>
-  </div>
-  <div id="shiprow">
-    <div class="ship-opt" data-region="UK">UK · £5</div>
-    <div class="ship-opt" data-region="INTL">WORLD · £15</div>
+    <div id="buy" class="disabled">BUY NOW £20</div>
   </div>
   <div id="dims">SELECT A SIZE</div>
 </div>
@@ -119,23 +115,14 @@
     L: { chest: 62, length: 74, sleeve: 24 },
   };
 
-  // ---- Stripe payment links (one per shipping region) ----
-  // Each link already carries the £20 item + its shipping rate; Stripe collects
-  // the customer's address. The chosen design + size ride along as client_reference_id.
-  const STRIPE_LINKS = {
-    UK:   'https://buy.stripe.com/5kQcMYf66aKB41V9c3aMU40',
-    INTL: 'https://buy.stripe.com/aFa28kgaa9Gx1TN1JBaMU41',
-  };
+  // ---- Stripe checkout ----
+  // ONE payment link. Stripe collects the shipping address and shows the right
+  // shipping rate (UK £5 / International £15) from the customer's country — so
+  // this link must have BOTH shipping rates + "collect shipping address" turned on.
+  const CHECKOUT_LINK = 'https://buy.stripe.com/5kQcMYf66aKB41V9c3aMU40';
 
-  const buyrowEl = document.getElementById('buyrow');
-  const shiprowEl = document.getElementById('shiprow');
   const dimsEl = document.getElementById('dims');
   const buyEl = document.getElementById('buy');
-
-  function closeShipping() {
-    shiprowEl.style.display = 'none';
-    buyrowEl.style.display = 'flex';
-  }
 
   let currentDesign = 0;
   const designEls = [...document.querySelectorAll('.design')];
@@ -144,7 +131,6 @@
       currentDesign = +el.dataset.design;
       designEls.forEach((d) => d.classList.toggle('selected', d === el));
       if (window.__setDesign) window.__setDesign(currentDesign);
-      closeShipping();
     });
   });
 
@@ -155,8 +141,7 @@
     selectedSize = size;
     sizeEls.forEach((s) => s.classList.toggle('selected', s === el));
     buyEl.classList.remove('disabled');
-    buyEl.textContent = 'BUY NOW · £20';
-    closeShipping();
+    buyEl.textContent = 'BUY NOW £20';
     const m = MEASUREMENTS[size];
     dimsEl.textContent =
       `SIZE ${size}\nCHEST ${m.chest}CM\nLENGTH ${m.length}CM\nSLEEVE ${m.sleeve}CM`;
@@ -166,7 +151,7 @@
     el.addEventListener('click', () => selectSize(el.dataset.size, el));
   });
 
-  // Step 1 — BUY NOW reveals the two shipping options.
+  // BUY NOW → Stripe (address + shipping handled there), carrying design + size.
   buyEl.addEventListener('click', () => {
     if (!selectedSize) {
       dimsEl.textContent = 'SELECT A SIZE FIRST';
@@ -176,20 +161,10 @@
       );
       return;
     }
-    buyrowEl.style.display = 'none';
-    shiprowEl.style.display = 'flex';
-  });
-
-  // Step 2 — pick a region → Stripe checkout, carrying design + size.
-  [...document.querySelectorAll('.ship-opt')].forEach((el) => {
-    el.addEventListener('click', () => {
-      const url = STRIPE_LINKS[el.dataset.region];
-      if (!url || !selectedSize) return;
-      const ref = `TTC-TEE-D${currentDesign + 1}-${selectedSize}`;
-      const sep = url.includes('?') ? '&' : '?';
-      el.textContent = '…';
-      window.location.href = `${url}${sep}client_reference_id=${ref}`;
-    });
+    const ref = `TTC-TEE-D${currentDesign + 1}-${selectedSize}`;
+    const sep = CHECKOUT_LINK.includes('?') ? '&' : '?';
+    buyEl.textContent = 'REDIRECTING…';
+    window.location.href = `${CHECKOUT_LINK}${sep}client_reference_id=${ref}`;
   });
 </script>
 
@@ -401,7 +376,7 @@ function processLogo(img) {
 
 // ---------- Group to hold shirt + decals so we can rotate together ----------
 const shirtGroup = new THREE.Group();
-shirtGroup.position.y = 0.6;    // lift so the whole shirt sits well above the controls
+shirtGroup.position.y = 0.72;   // lift so the whole shirt sits well above the controls
 scene.add(shirtGroup);
 window.__shirtGroup = shirtGroup;
 
