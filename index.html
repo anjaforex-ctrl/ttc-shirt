@@ -45,7 +45,7 @@
     pointer-events: auto;
     flex: 1; padding: 13px 0; border-radius: 11px;
     background: #0d0d0d; border: 1.4px dashed rgba(255,255,255,0.85);
-    color: #fff; font-size: 13px; letter-spacing: 0.16em; text-align: center;
+    color: #fff; font-size: 11px; letter-spacing: 0.05em; text-align: center;
     cursor: pointer; user-select: none;
     transition: background .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease;
   }
@@ -141,7 +141,7 @@
     selectedSize = size;
     sizeEls.forEach((s) => s.classList.toggle('selected', s === el));
     buyEl.classList.remove('disabled');
-    buyEl.textContent = 'BUY NOW £20';
+    buyEl.textContent = `BUY NOW · SIZE ${size} · £20`;
     const m = MEASUREMENTS[size];
     dimsEl.textContent =
       `SIZE ${size}\nCHEST ${m.chest}CM\nLENGTH ${m.length}CM\nSLEEVE ${m.sleeve}CM`;
